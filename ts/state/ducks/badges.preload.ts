@@ -86,7 +86,9 @@ function updateOrCreate(
       payload: badges,
     });
 
-    void badgeImageFileDownloader.checkForFilesToDownload();
+    if (window.SignalContext.config.badgesEnabled) {
+      void badgeImageFileDownloader.checkForFilesToDownload();
+    }
   };
 }
 

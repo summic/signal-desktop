@@ -294,6 +294,20 @@ const { isNumber, throttle } = lodash;
 const log = createLogger('background');
 const { i18n } = window.SignalContext;
 
+function nowMs(): number {
+  return Date.now();
+}
+
+async function time<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const start = nowMs();
+  log.info(`[startup] ${label}: start`);
+  try {
+    return await fn();
+  } finally {
+    log.info(`[startup] ${label}: done in ${nowMs() - start}ms`);
+  }
+}
+
 export function isOverHourIntoPast(timestamp: number): boolean {
   return isNumber(timestamp) && isOlderThan(timestamp, HOUR);
 }
@@ -1164,14 +1178,21 @@ export async function startApp(): Promise<void> {
     try {
       // This needs to load before we prime the data because we expect
       // ConversationController to be loaded and ready to use by then.
-      await window.ConversationController.load();
+      await time('ConversationController.load', () =>
+        window.ConversationController.load()
+      );
 
-      await Promise.all([
-        window.ConversationController.getOrCreateSignalConversation(),
-        signalProtocolStore.hydrateCaches(),
-        loadAll(),
-      ]);
-      await window.ConversationController.checkForConflicts();
+      await time('PrimeData (getOrCreate + hydrateCaches + loadAll)', () =>
+        Promise.all([
+          window.ConversationController.getOrCreateSignalConversation(),
+          signalProtocolStore.hydrateCaches(),
+          loadAll(),
+        ])
+      );
+
+      await time('ConversationController.checkForConflicts', () =>
+        window.ConversationController.checkForConflicts()
+      );
     } catch (error) {
       log.error(
         'js: ConversationController failed to load:',
@@ -1179,7 +1200,11 @@ export async function startApp(): Promise<void> {
       );
     } finally {
       setupAppState();
-      drop(start());
+      time('background.start', async () => {
+        await start();
+      }).catch(() => {
+        // Errors are handled in start() call sites; this log is timing-only.
+      });
       initializeNetworkObserver(
         window.reduxActions.network,
         () => window.getSocketStatus().authenticated.status
@@ -1391,7 +1416,9 @@ export async function startApp(): Promise<void> {
       }
     }
 
-    void badgeImageFileDownloader.checkForFilesToDownload();
+    if (window.SignalContext.config.badgesEnabled) {
+      void badgeImageFileDownloader.checkForFilesToDownload();
+    }
 
     initializeExpiringMessageService();
     initializeNotificationProfilesService();
@@ -2085,7 +2112,9 @@ export async function startApp(): Promise<void> {
       )
     );
 
-    drop(initializeDonationService());
+    if (window.SignalContext.config.donationsEnabled) {
+      drop(initializeDonationService());
+    }
     initMegaphoneCheckService();
 
     if (isFromMessageReceiver) {

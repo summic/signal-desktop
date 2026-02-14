@@ -15,6 +15,7 @@ import { v4 as getGuid } from 'uuid';
 import { z } from 'zod';
 import type { Readable } from 'node:stream';
 import qs from 'node:querystring';
+import tls from 'node:tls';
 import { LibSignalErrorBase, ErrorCode } from '@signalapp/libsignal-client';
 import type {
   KEMPublicKey,
@@ -347,8 +348,21 @@ function getHostname(url: string): string {
 type FetchOptionsType = Omit<RequestInit, 'headers'> & {
   headers: Record<string, string>;
   // This is patch-packaged
-  ca?: string;
+  ca?: string | ReadonlyArray<string>;
 };
+
+function getCombinedCertificateAuthorities(
+  extraCa?: string
+): ReadonlyArray<string> | undefined {
+  if (!extraCa) {
+    return undefined;
+  }
+
+  // Important: passing `ca` replaces Node's default root set. If we want to trust
+  // public CAs (e.g. Let's Encrypt) AND an additional CA, we must include the
+  // default roots explicitly.
+  return [...tls.rootCertificates, extraCa];
+}
 
 async function getFetchOptions<Type extends ResponseType, OutputShape>(
   options: Omit<PromiseAjaxOptionsType<Type, OutputShape>, 'responseType'>
@@ -389,7 +403,7 @@ async function getFetchOptions<Type extends ResponseType, OutputShape>(
     } as FetchHeaderListType,
     redirect: options.redirect,
     agent,
-    ca: options.certificateAuthority,
+    ca: getCombinedCertificateAuthorities(options.certificateAuthority),
     timeout,
     signal: options.abortSignal,
   };

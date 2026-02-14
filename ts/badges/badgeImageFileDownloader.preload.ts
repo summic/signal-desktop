@@ -18,11 +18,20 @@ enum BadgeDownloaderState {
   CheckingWithAnotherCheckEnqueued,
 }
 
+function areBadgesEnabled(): boolean {
+  return Boolean(window.SignalContext?.config?.badgesEnabled);
+}
+
 class BadgeImageFileDownloader {
   #state = BadgeDownloaderState.Idle;
   #queue = new PQueue({ concurrency: 3 });
 
   public async checkForFilesToDownload(): Promise<void> {
+    if (!areBadgesEnabled()) {
+      log.info('BadgeDownloader#checkForFilesToDownload: disabled by config');
+      return;
+    }
+
     switch (this.#state) {
       case BadgeDownloaderState.CheckingWithAnotherCheckEnqueued:
         log.info(

@@ -32,6 +32,8 @@ export const rendererConfigSchema = z.object({
   appStartInitialSpellcheckSetting: z.boolean(),
   buildCreation: z.number(),
   buildExpiration: z.number(),
+  badgesEnabled: z.boolean(),
+  donationsEnabled: z.boolean(),
   cdnUrl0: configRequiredStringSchema,
   cdnUrl2: configRequiredStringSchema,
   cdnUrl3: configRequiredStringSchema,

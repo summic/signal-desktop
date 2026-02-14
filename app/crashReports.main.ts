@@ -4,7 +4,6 @@
 import { app, crashReporter, ipcMain as ipc } from 'electron';
 import fsExtra from 'fs-extra';
 import { basename, join } from 'node:path';
-import { toJSONString as dumpToJSONString } from '@signalapp/libsignal-client/dist/Minidump.js';
 import z from 'zod';
 
 import type { LoggerType } from '../ts/types/Logging.std.js';
@@ -66,6 +65,40 @@ const dumpSchema = z.object({
     .optional(),
 });
 
+type DumpToJSONString = (content: Buffer | Uint8Array | string) => string;
+
+let dumpToJSONString: DumpToJSONString | undefined;
+let dumpToJSONStringWarned = false;
+
+function resolveDumpToJSONString(logger: LoggerType): DumpToJSONString {
+  if (dumpToJSONString != null) {
+    return dumpToJSONString;
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { toJSONString } = require('@signalapp/libsignal-client/dist/Minidump.js');
+    dumpToJSONString = toJSONString as DumpToJSONString;
+    return dumpToJSONString;
+  } catch (error) {
+    if (!dumpToJSONStringWarned) {
+      dumpToJSONStringWarned = true;
+      logger.warn(
+        'crashReports: failed to load @signalapp/libsignal-client/dist/Minidump.js, falling back',
+        Errors.toLogFormat(error)
+      );
+    }
+
+    dumpToJSONString = (content: Buffer | Uint8Array | string): string => {
+      if (Buffer.isBuffer(content) || content instanceof Uint8Array) {
+        return Buffer.from(content).toString('utf8');
+      }
+      return content;
+    };
+    return dumpToJSONString;
+  }
+}
+
 async function getPendingDumps(): Promise<ReadonlyArray<string>> {
   const crashDumpsPath = await realpath(app.getPath('crashDumps'));
   let pendingDir: string;
@@ -123,7 +156,8 @@ export function setup(
         pendingDumps.map(async fullPath => {
           const content = await readFile(fullPath);
           try {
-            const json: unknown = JSON.parse(dumpToJSONString(content));
+            const dumpParser = resolveDumpToJSONString(logger);
+            const json: unknown = JSON.parse(dumpParser(content));
             const dump = parseUnknown(dumpSchema, json);
             if (dump.crash_info?.type !== 'Simulated Exception') {
               return fullPath;
@@ -172,7 +206,8 @@ export function setup(
           const content = await readFile(fullPath);
           const { mtime } = await stat(fullPath);
 
-          const json: unknown = JSON.parse(dumpToJSONString(content));
+          const dumpParser = resolveDumpToJSONString(logger);
+          const json: unknown = JSON.parse(dumpParser(content));
           const dump = parseUnknown(dumpSchema, json);
 
           if (dump.crash_info?.type === 'Simulated Exception') {

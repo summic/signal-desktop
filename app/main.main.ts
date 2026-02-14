@@ -2851,6 +2851,8 @@ ipc.on('get-config', async event => {
     version: app.getVersion(),
     buildCreation: config.get<number>('buildCreation'),
     buildExpiration: config.get<number>('buildExpiration'),
+    badgesEnabled: config.get<boolean>('badgesEnabled'),
+    donationsEnabled: config.get<boolean>('donationsEnabled'),
     challengeUrl: config.get<string>('challengeUrl'),
     serverUrl: config.get<string>('serverUrl'),
     storageUrl: config.get<string>('storageUrl'),

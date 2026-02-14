@@ -53,6 +53,7 @@ import { Avatar, AvatarSize } from './Avatar.dom.js';
 import { NavSidebar } from './NavSidebar.dom.js';
 import type { SettingsLocation } from '../types/Nav.std.js';
 import { SettingsPage, ProfileEditorPage } from '../types/Nav.std.js';
+import { areDonationEndpointsDisabledByServer } from '../util/subscriptionConfiguration.preload.js';
 import { tw } from '../axo/tw.dom.js';
 import { FullWidthButton } from './PreferencesNotificationProfiles.dom.js';
 import type { EmojiSkinTone } from './fun/data/emojis.std.js';
@@ -2547,21 +2548,23 @@ export function Preferences({
                   {i18n('icu:Preferences__button--backups')}
                 </button>
               ) : null}
-              <button
-                type="button"
-                className={classNames({
-                  Preferences__button: true,
-                  'Preferences__button--donations': true,
-                  'Preferences__button--selected': isDonationsPage(
-                    settingsLocation.page
-                  ),
-                })}
-                onClick={() =>
-                  setSettingsLocation({ page: SettingsPage.Donations })
-                }
-              >
-                {i18n('icu:Preferences__button--donate')}
-              </button>
+              {!areDonationEndpointsDisabledByServer() ? (
+                <button
+                  type="button"
+                  className={classNames({
+                    Preferences__button: true,
+                    'Preferences__button--donations': true,
+                    'Preferences__button--selected': isDonationsPage(
+                      settingsLocation.page
+                    ),
+                  })}
+                  onClick={() =>
+                    setSettingsLocation({ page: SettingsPage.Donations })
+                  }
+                >
+                  {i18n('icu:Preferences__button--donate')}
+                </button>
+              ) : null}
               {isInternalUser ? (
                 <button
                   type="button"

@@ -23,6 +23,7 @@ import { useToastActions } from '../ducks/toast.preload.js';
 import {
   getCachedSubscriptionConfiguration,
   maybeHydrateDonationConfigCache,
+  areDonationEndpointsDisabledByServer,
 } from '../../util/subscriptionConfiguration.preload.js';
 import { drop } from '../../util/drop.std.js';
 import { saveAttachmentToDisk } from '../../util/migrations.preload.js';
@@ -58,6 +59,13 @@ export const SmartPreferencesDonations = memo(
     settingsLocation: SettingsLocation;
     setSettingsLocation: (settingsLocation: SettingsLocation) => void;
   }) {
+    if (areDonationEndpointsDisabledByServer()) {
+      // Donations are disabled on this server (server returns 501 for config).
+      // The left nav entry should be hidden; this is a defensive guard in case
+      // we navigated here via a stale route.
+      return null;
+    }
+
     const getPreferredBadge = useSelector(getPreferredBadgeSelector);
 
     const isOnline = useSelector(getNetworkIsOnline);

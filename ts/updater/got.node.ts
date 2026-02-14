@@ -4,6 +4,7 @@
 import type { StrictOptions as GotOptions } from 'got';
 import config from 'config';
 import { Agent as HTTPAgent } from 'node:http';
+import tls from 'node:tls';
 
 import { version } from '../util/packageJson.node.js';
 import { getUserAgent } from '../util/getUserAgent.node.js';
@@ -42,7 +43,9 @@ export async function getGotOptions(): Promise<GotOptions> {
   return {
     agent,
     https: {
-      certificateAuthority,
+      // Same pitfall as node-fetch: providing a CA replaces default roots.
+      // Keep default roots and add configured CA as an extra trust anchor.
+      certificateAuthority: [...tls.rootCertificates, certificateAuthority],
     },
     headers: {
       'Cache-Control': 'no-cache',

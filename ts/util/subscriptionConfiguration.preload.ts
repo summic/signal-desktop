@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { pickBy } from 'lodash';
+import { HTTPError } from '../types/HTTPError.std.js';
 import type { SubscriptionConfigurationResultType } from '../textsecure/WebAPI.preload.js';
 import { getSubscriptionConfiguration } from '../textsecure/WebAPI.preload.js';
 import {
@@ -19,6 +20,15 @@ const SUBSCRIPTION_CONFIG_CACHE_TIME = HOUR;
 
 let cachedSubscriptionConfig: SubscriptionConfigurationResultType | undefined;
 let cachedSubscriptionConfigExpiresAt: number | undefined;
+let donationEndpointsDisabledByServer = false;
+
+function areDonationsEnabled(): boolean {
+  return Boolean(window.SignalContext?.config?.donationsEnabled);
+}
+
+export function areDonationEndpointsDisabledByServer(): boolean {
+  return donationEndpointsDisabledByServer || !areDonationsEnabled();
+}
 
 function isCacheRefreshNeeded(): boolean {
   return (
@@ -38,6 +48,15 @@ const getCachedSubscriptionConfigurationDedup = new TaskDeduplicator(
 );
 
 export async function _getCachedSubscriptionConfiguration(): Promise<SubscriptionConfigurationResultType> {
+  if (!areDonationsEnabled()) {
+    donationEndpointsDisabledByServer = true;
+    throw new HTTPError('Donations disabled', {
+      code: 501,
+      headers: {},
+      stack: '',
+    });
+  }
+
   if (isCacheRefreshNeeded()) {
     cachedSubscriptionConfig = undefined;
   }
@@ -47,7 +66,15 @@ export async function _getCachedSubscriptionConfiguration(): Promise<Subscriptio
   }
 
   log.info('Refreshing config cache');
-  const response = await getSubscriptionConfiguration();
+  let response: SubscriptionConfigurationResultType;
+  try {
+    response = await getSubscriptionConfiguration();
+  } catch (error) {
+    if (error instanceof HTTPError && error.code === 501) {
+      donationEndpointsDisabledByServer = true;
+    }
+    throw error;
+  }
 
   cachedSubscriptionConfig = response;
   cachedSubscriptionConfigExpiresAt =
@@ -72,6 +99,9 @@ export async function getCachedDonationHumanAmounts(): Promise<OneTimeDonationHu
 }
 
 export async function maybeHydrateDonationConfigCache(): Promise<void> {
+  if (!areDonationsEnabled()) {
+    return;
+  }
   if (!isCacheRefreshNeeded()) {
     return;
   }
